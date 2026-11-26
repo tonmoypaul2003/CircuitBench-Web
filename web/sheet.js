@@ -1,4 +1,4 @@
-import {$, canvasContext, palette} from './utils.js';
+import {$, canvasContext, engineering, palette} from './utils.js';
 
 const same = (a, b) => a[0] === b[0] && a[1] === b[1];
 export const onWire = ([x, y], [[ax, ay], [bx, by]]) =>
@@ -98,6 +98,7 @@ export function createSheet(state, callbacks) {
       ctx.font = 'bold 12px system-ui';
       pins.forEach((p,j) => {const [x,y]=xy(p);dot([x,y],5);ctx.fillText(marker.kind+(i+1)+(marker.kind==='VD' ? j ? '−' : '+' : ''),x+7,y-6);});
     });
+    if (state.bias && $('show-bias').checked) drawBias(ctx, line, dot);
     if (cursor && state.tool !== 'select') {
       const [x,y] = xy(cursor);
       ctx.strokeStyle = cursorInk;
@@ -111,6 +112,55 @@ export function createSheet(state, callbacks) {
       ctx.fillStyle='#93edd124';ctx.fillRect(x,y,u-x,v-y);
       ctx.strokeStyle=wireInk;ctx.strokeRect(x,y,u-x,v-y);
     }
+  }
+
+  function drawBias(ctx, line, dot) {
+    const [background, voltageInk, currentInk] = palette(canvas, 'sheet', 'bias-voltage', 'bias-current');
+    ctx.save();
+    ctx.font = 'bold 12px system-ui';
+    ctx.lineWidth = 1.5;
+    function label(text, x, y, color, alignment='left') {
+      ctx.textAlign = alignment;
+      const width = ctx.measureText(text).width;
+      const left = alignment==='right'?x-width:alignment==='center'?x-width/2:x;
+      ctx.fillStyle = background;
+      ctx.fillRect(left-3,y-12,width+6,15);
+      ctx.fillStyle = color;
+      ctx.fillText(text,x,y);
+    }
+    for (const {point,value} of state.bias.nodes) {
+      const [x,y] = xy(point);
+      ctx.fillStyle = voltageInk;
+      dot([x,y],4);
+      label(engineering(value,'V'),x-7,y-6,voltageInk,'right');
+    }
+    for (const {part,pin,value} of state.bias.currents) {
+      const device = state.project.parts[part];
+      const terminal = state.pins[part][pin];
+      const simple = state.pins[part].length===2;
+      const [cx,cy] = xy([device.x,device.y]);
+      const [px,py] = xy(terminal);
+      const length = Math.hypot(cx-px,cy-py);
+      if (!length) continue;
+      const dx=(cx-px)/length, dy=(cy-py)/length;
+      const side=simple?Math.max(12,scale*.72):7;
+      const x=(simple?cx:cx+(px-cx)*.72)-dy*side;
+      const y=(simple?cy:cy+(py-cy)*.72)+dx*side;
+      const half=simple?Math.min(18,scale*.65):7;
+      ctx.strokeStyle = currentInk;
+      if (value!==0) {
+        const sign=Math.sign(value);
+        const end=[x+dx*half*sign,y+dy*half*sign];
+        const base=[end[0]-dx*6*sign,end[1]-dy*6*sign];
+        line([x-dx*half*sign,y-dy*half*sign],end);
+        line([base[0]-dy*3,base[1]+dx*3],end);
+        line([base[0]+dy*3,base[1]-dx*3],end);
+      }
+      const text=engineering(Math.abs(value),'A');
+      if(Math.abs(dx)>=Math.abs(dy))label(text,x,y+(dx>0?15:-5),currentInk,'center');
+      else label(text,x+(dy>0?-6:6),y+4,currentInk,dy>0?'right':'left');
+    }
+    ctx.restore();
   }
 
   canvas.onpointerdown = event => {

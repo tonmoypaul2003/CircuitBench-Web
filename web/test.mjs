@@ -13,12 +13,12 @@ python.runPython("import sys\nsys.path.insert(0, '/circuitbench')\nfrom bridge i
 const dispatch=python.globals.get('dispatch');
 const call=(op,args={})=>JSON.parse(dispatch(JSON.stringify({op,...args})));
 const close=(actual,expected,tolerance)=>assert.ok(Math.abs(actual-expected)<=tolerance,actual+' differs from '+expected);
-async function solve(project){
-  const {input,measurements}=call('netlist',{project});
+async function solve(project,annotate=false){
+  const {input,measurements,operating_point}=call('netlist',{project,annotate});
   const {raw,log,error}=await simulate(input);
   assert.ok(!error,log);
   assert.match(raw,/Command: ngspice-46/);
-  return call('waveform',{raw,measurements});
+  return call('waveform',{raw,measurements,operating_point});
 }
 function signal(plot,name){
   const index=plot.names.indexOf(name);
@@ -39,6 +39,19 @@ close(op.rows[0][op.selected[1]][0],5,1e-10);
 close(op.rows[0][op.selected[2]][0],.005,1e-10);
 close(call('expression',{plot:op,expression:'multiply(v(out), 2)'})[0][0],10,1e-10);
 
+const bias=await solve(divider,true);
+const output=bias.annotations.nodes.find(node=>node.net==='out');
+assert.deepEqual(output.point,[5,-2]);
+close(output.value,5,1e-10);
+assert.equal(bias.annotations.nodes.find(node=>node.net==='0').value,0);
+assert.equal(bias.annotations.currents.length,3);
+for(const {part,pin,value} of bias.annotations.currents){
+  assert.equal(pin,0);
+  close(value,divider.parts[part].ref==='V1'?-.005:.005,1e-10);
+}
+assert.equal(bias.selected.length,3);
+assert.ok(!bias.names.some(name=>/^[vi]\([nv]_cwb/.test(name)));
+
 const ac=await solve(call('example',{name:'ac'}).project);
 const frequencies=signal(ac,'frequency');
 const near=frequencies.findIndex(([value])=>value>=159);
@@ -50,8 +63,9 @@ const timeIndex=times.findIndex(([value])=>value>=.001);
 close(signal(tran,'v(out)')[timeIndex][0],1-Math.exp(-1),.01);
 
 const sweep=call('profile',{project:divider,edit:'new',name:'Source sweep',mode:'DC'}).project;
-const dc=await solve(sweep);
+const dc=await solve(sweep,true);
 assert.equal(dc.rows.length,11);
+assert.equal(dc.annotations,null);
 close(signal(dc,'v(out)').at(-1)[0],5,1e-10);
 
 const upgraded=call('validate',{project:{...divider,version:1}}).project;

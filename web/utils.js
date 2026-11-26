@@ -43,3 +43,11 @@ export function palette(canvas, ...names) {
   const style = getComputedStyle(canvas);
   return names.map(name => style.getPropertyValue('--' + name).trim());
 }
+
+export function engineering(value, unit) {
+  const prefixes = ['f', 'p', 'n', 'µ', 'm', '', 'k', 'M', 'G', 'T'];
+  if (value === 0) return '0 ' + unit;
+  const exponent = Math.max(-5, Math.min(4, Math.floor(Math.log10(Math.abs(value)) / 3)));
+  const amount = Number((value / 10 ** (3 * exponent)).toPrecision(4));
+  return amount + ' ' + prefixes[exponent + 5] + unit;
+}

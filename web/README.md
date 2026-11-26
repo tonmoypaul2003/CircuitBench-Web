@@ -29,6 +29,7 @@ Only the contents of `web/dist` are published. All runtime URLs are relative to 
 
 - Use **Theme** to switch between light, dark, and your system setting. The browser remembers your preference.
 - Start with the 10 V divider or choose the RC AC and transient examples. Use **Profile settings** to edit the analysis and **New profile** to create a DC source sweep.
+- Operating-point runs label the schematic with node voltages and signed current directions. The **Readings** panel lists the same values, and **Show plot** opens the optional plot for operating-point and DC sweep results.
 - Open or download a desktop-compatible `.cwb` schematic. Use **Import models** for SPICE model cards and the supported self-contained subcircuit subset, or load the included Qucs-S and starter libraries.
 - Place components with the library, wire grid points, add junctions and attach voltage, differential or pin-current markers. The selection tool supports shift selection, drag, and arrow-key movement. Scroll to zoom and middle-drag, right-drag or Alt-drag to pan.
 - Results support plot pages, subplots, trace expressions, labels, axis settings, pins, CSV and PNG. Use **Print page / PDF** and the browser's PDF destination to export a PDF.

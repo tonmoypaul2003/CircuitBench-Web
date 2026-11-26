@@ -1,4 +1,4 @@
-﻿import {$, button, download, element, field, options} from './utils.js';
+import {$, button, download, element, engineering, field, options} from './utils.js';
 import {createSheet, route, onWire} from './sheet.js';
 import {createPlots} from './plots.js';
 
@@ -179,7 +179,37 @@ function refresh(){
   options($('profile'),Object.keys(state.project.profiles).map(name=>[name,name]),state.project.active);
   $('remove-profile').disabled=Object.keys(state.project.profiles).length<=1;
   $('undo').disabled=undo.length===0;$('redo').disabled=redo.length===0;
-  populateLibrary();refreshSelection();refreshMarkers();sheet.draw();
+  populateLibrary();refreshSelection();refreshMarkers();refreshBias();sheet.draw();
+}
+function refreshBias(){
+  state.bias = currentRun?.annotations && JSON.stringify(currentRun.project)===JSON.stringify(state.project)
+    ? currentRun.annotations : null;
+  $('bias-controls').hidden=!state.bias;
+  const readings=$('bias-readings');
+  readings.replaceChildren();
+  if(!state.bias)return;
+  for(const {net,value} of state.bias.nodes){
+    element('dt',net==='0'?'Ground':net,readings);
+    element('dd',engineering(value,'V'),readings);
+  }
+  for(const {part,pin,value} of state.bias.currents){
+    const device=state.project.parts[part];
+    const terminal=device.port_names[pin] || 'pin '+(pin+1);
+    element('dt',device.ref+' · '+terminal,readings);
+    element('dd',engineering(Math.abs(value),'A')+(value===0?'':value>0?' into':' out of'),readings);
+  }
+}
+function updatePlotVisibility(){
+  const visible=$('plot-control').hidden || $('show-plot').checked;
+  for(const id of ['pages','plots','add-page','add-plot'])$(id).hidden=!visible;
+}
+function showResult(display,mode){
+  plots.show(display);
+  $('plot-control').hidden=!display||!['OP','DC'].includes(mode);
+  $('show-plot').checked=false;
+  updatePlotVisibility();
+  refreshBias();
+  sheet.draw();
 }
 function refreshMarkers(){
   const panel=$('markers');panel.replaceChildren();
@@ -418,10 +448,12 @@ function runControls(active){
   $('cancel').hidden=!active;
 }
 async function acceptRun(record,isCurrent=()=>true){
-  const display=record.raw?await call('waveform',{raw:record.raw,measurements:record.measurements}):null;
+  const display=record.raw?await call('waveform',{raw:record.raw,measurements:record.measurements,
+    operating_point:record.operating_point}):null;
   if(!isCurrent())return;
   currentRun=record;
-  plots.show(display);
+  currentRun.annotations=display?.annotations;
+  showResult(display,record.mode || (display?.title==='Operating Point'?'OP':undefined));
   $('logs').disabled=false;
 }
 async function run(){
@@ -434,7 +466,7 @@ async function run(){
   runControls(true);
   report('Compiling schematic…');
   try{
-    Object.assign(record,await call('netlist',{project}));
+    Object.assign(record,await call('netlist',{project,annotate:true}));
     if(id!==generation)return;
     report('Running ngspice in this browser…');
     const response=await new Promise((resolve,reject)=>{
@@ -451,7 +483,8 @@ async function run(){
     await acceptRun(record,()=>id===generation);
     if(id!==generation)return;
     record.status='Completed';
-    report('Simulation completed in '+((performance.now()-start)/1000).toFixed(2)+' s.');
+    report('Simulation completed in '+((performance.now()-start)/1000).toFixed(2)+' s.'
+      +(record.mode==='OP' && state.bias?' Voltage and current are shown on the schematic.':''));
     await refreshHistory(record);
   }catch(error){
     if(id!==generation)return;
@@ -459,7 +492,7 @@ async function run(){
     record.raw=null;
     currentRun=record;
     $('logs').disabled=false;
-    plots.show(null);
+    showResult(null);
     report(error.message);
     await refreshHistory(record);
   }finally{
@@ -494,6 +527,8 @@ $('tools').querySelectorAll('[data-tool]').forEach(control=>control.onclick=()=>
 $('search').oninput=populateLibrary;
 $('search').onkeydown=event=>{if(event.key==='Enter')$('parts').querySelector('button')?.click();};
 $('show-markers').onchange=sheet.draw;
+$('show-bias').onchange=sheet.draw;
+$('show-plot').onchange=updatePlotVisibility;
 $('fit').onclick=sheet.fit;
 $('reset-view').onclick=sheet.reset;
 $('ground').onclick=()=>setTool('place',{kind:'G',label:'Ground'});

@@ -41,9 +41,13 @@ def action(call):
             path.write_text(call["raw"], encoding="ascii")
             plot = load_plot(path)
         selected = plot.marker_columns(call.get("measurements", []))
+        annotations = None
+        if call.get("operating_point") and len(plot.rows) == 1:
+            annotations = bias_readings(plot, call["operating_point"])
+            selected = trim_bias_vectors(plot, call["operating_point"], selected)
         return {"title": plot.title, "names": plot.names, "units": plot.units,
                 "rows": [[pair(value) for value in row] for row in plot.rows],
-                "selected": selected}
+                "selected": selected, "annotations": annotations}
     if op == "expression":
         data = call["plot"]
         plot = Plot(data["title"], data["names"], data["units"],
@@ -54,7 +58,12 @@ def action(call):
     if op == "netlist":
         measurements = []
         deck = netlist(project, measurements)
-        return {"deck": deck, "input": analysis_deck(deck), "measurements": measurements}
+        mode = project.profiles[project.active].mode
+        if mode == "OP" and call.get("annotate"):
+            instrumented, operating_point = bias_deck(project)
+            return {"deck": deck, "input": analysis_deck(instrumented), "measurements": measurements,
+                    "operating_point": operating_point, "mode": mode}
+        return {"deck": deck, "input": analysis_deck(deck), "measurements": measurements, "mode": mode}
     if op == "move":
         dx, dy = call["delta"]
         translate_selection(project, *call["selection"], dx, dy)
@@ -136,6 +145,60 @@ def action(call):
 
 def pair(value):
     return [value.real, value.imag] if math.isfinite(value.real) and math.isfinite(value.imag) else None
+
+
+def bias_deck(project):
+    nets = connectivity(project)
+    devices = [(i, part) for i, part in enumerate(project.parts) if part.kind not in "GN"]
+    anchors = {nets[pin]: pin for _, part in devices for pin in part.pins()}
+    for point in project.junctions:
+        if nets[point] in anchors:
+            anchors[nets[point]] = point
+    for part in project.parts:
+        if part.kind in "GN":
+            point = part.pins()[0]
+            if nets[point] in anchors:
+                anchors[nets[point]] = point
+    original_count = len(project.markers)
+    currents = []
+    for index, part in devices:
+        pins = part.pins()
+        for pin in range(1 if len(pins) == 2 else len(pins)):
+            project.markers.append({"kind": "I", "ref": part.ref, "pin": pin})
+            currents.append({"part": index, "pin": pin})
+    measurements = []
+    deck = netlist(project, measurements)
+    for current, (_, vector, _) in zip(currents, measurements[original_count:]):
+        current["vector"] = vector
+    return deck, {"nodes": [{"net": net, "point": point} for net, point in anchors.items()],
+                  "currents": currents}
+
+
+def bias_readings(plot, operating_point):
+    vectors = {name.lower(): value.real for name, value in zip(plot.names, plot.rows[0])}
+    nodes = []
+    for node in operating_point["nodes"]:
+        net = node["net"]
+        value = 0 if net == "0" else vectors.get(f"v({net})")
+        if value is not None:
+            nodes.append({**node, "value": value})
+    currents = [{**current, "value": vectors[current["vector"]]}
+                for current in operating_point["currents"] if current["vector"] in vectors]
+    return {"nodes": nodes, "currents": currents}
+
+
+def trim_bias_vectors(plot, operating_point, selected):
+    internal = set()
+    for current in operating_point["currents"]:
+        vector = current["vector"]
+        internal.update((vector, f"v(n_{vector[4:-1]})"))
+    keep = [index for index, name in enumerate(plot.names)
+            if name.lower() not in internal or index in selected]
+    plot.names = [plot.names[index] for index in keep]
+    plot.units = [plot.units[index] for index in keep]
+    plot.rows = [[row[index] for index in keep] for row in plot.rows]
+    indices = {old: new for new, old in enumerate(keep)}
+    return [indices[index] for index in selected]
 
 
 def dispatch(payload):

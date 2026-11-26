@@ -54,3 +54,9 @@ button:hover,button[aria-pressed=true]{background:var(--control-active);border-c
 #schematic{background:var(--sheet)}
 .theme-picker{display:flex;align-items:center;gap:.4rem;margin:0}
 .theme-picker select{width:auto;margin:0}
+[hidden]{display:none!important}
+:root{--bias-voltage:#82deff;--bias-current:#ffcf80}
+:root[data-theme=light]{--bias-voltage:#005b91;--bias-current:#8a4400}
+#bias-readings{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.25rem .5rem;font-size:.85rem}
+#bias-readings dd{margin:0;text-align:right}
+#bias-readings dt{overflow-wrap:anywhere}

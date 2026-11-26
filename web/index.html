@@ -56,10 +56,16 @@ try {
     <button id="remove-profile">Remove profile</button><button id="netlist">View netlist</button>
     <h2>Markers</h2><label><input type="checkbox" id="show-markers" checked> Show on schematic</label>
     <div id="markers"></div>
+    <div id="bias-controls" hidden>
+      <h2>Operating point</h2>
+      <label><input type="checkbox" id="show-bias" checked> Show voltage and current</label>
+      <details><summary>Readings</summary><dl id="bias-readings"></dl></details>
+    </div>
   </aside>
   <section class="results">
     <div class="toolbar"><h2>Simulation results</h2><select id="history" aria-label="Run history"></select>
     <button id="logs">Run files</button><button id="open-raw">Open waveform</button>
+    <label id="plot-control" hidden><input type="checkbox" id="show-plot"> Show plot</label>
     <button id="add-page">Add page</button><button id="add-plot">Add subplot</button></div>
     <div id="pages" class="toolbar"></div><div id="plots"></div>
   </section>
