@@ -1,0 +1,89 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CircuitBench</title>
+<script>
+try {
+  const theme = localStorage.getItem('circuitbench-theme');
+  if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+} catch {}
+</script>
+<link rel="icon" href="./CircuitBench.ico">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span aria-hidden="true">⌁</span> CircuitBench</div>
+  <nav aria-label="Project">
+    <button id="open">Open</button><button id="save">Save</button><button id="save-as">Save as</button>
+    <select id="example" aria-label="Examples">
+      <option value="">Examples</option><option value="blank">Blank schematic</option>
+      <option value="divider">Voltage divider</option><option value="ac">RC filter AC</option>
+      <option value="transient">RC step response</option>
+    </select>
+  </nav>
+  <div class="simulate"><select id="profile" aria-label="Simulation profile"></select>
+  <button id="run" class="accent">Run simulation</button><button id="cancel" hidden>Cancel</button>
+  <label class="theme-picker">Theme <select id="theme" aria-label="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label></div>
+</header>
+<main inert aria-busy="true">
+  <aside class="library">
+    <h2>Components</h2>
+    <input id="search" type="search" placeholder="Search components" aria-label="Search components">
+    <div id="parts" role="list"></div>
+    <button id="models">Import models</button><button id="starter">Starter models</button>
+    <button id="qucs">Qucs-S diodes</button>
+  </aside>
+  <section class="sheet" aria-label="Schematic">
+    <div id="tools" class="toolbar">
+      <button data-tool="select" aria-pressed="true">Select</button><button data-tool="wire">Wire</button>
+      <button data-tool="junction">Junction</button><button id="ground">Ground</button>
+      <button id="label">Net label</button><button data-tool="V">Voltage</button>
+      <button data-tool="VD">Differential</button><button data-tool="I">Current</button>
+      <button id="rotate">Rotate</button><button id="delete">Delete</button>
+      <button id="undo">Undo</button><button id="redo">Redo</button><button id="fit">Fit</button>
+      <button id="reset-view">Reset view</button>
+    </div>
+    <canvas id="schematic" tabindex="0" aria-label="Schematic editor"></canvas>
+    <footer><span id="hint"></span><span id="coordinates"></span></footer>
+  </section>
+  <aside class="inspector">
+    <h2>Properties</h2><div id="properties"></div>
+    <h2>Analysis</h2><button id="edit-profile">Profile settings</button>
+    <button id="new-profile">New profile</button><button id="duplicate-profile">Duplicate</button>
+    <button id="remove-profile">Remove profile</button><button id="netlist">View netlist</button>
+    <h2>Markers</h2><label><input type="checkbox" id="show-markers" checked> Show on schematic</label>
+    <div id="markers"></div>
+  </aside>
+  <section class="results">
+    <div class="toolbar"><h2>Simulation results</h2><select id="history" aria-label="Run history"></select>
+    <button id="logs">Run files</button><button id="open-raw">Open waveform</button>
+    <button id="add-page">Add page</button><button id="add-plot">Add subplot</button></div>
+    <div id="pages" class="toolbar"></div><div id="plots"></div>
+  </section>
+</main>
+<div id="status" role="status">Loading CircuitBench…</div>
+<input type="file" id="project-file" accept=".json,.cwb,.cb" hidden>
+<input type="file" id="model-files" multiple accept=".lib,.mod,.cir,.sp,.spi,.sub,.txt" hidden>
+<input type="file" id="raw-file" accept=".raw,.txt" hidden>
+<dialog id="dialog"><form method="dialog"><h2 id="dialog-title"></h2><div id="dialog-body"></div>
+<div class="dialog-actions"><button value="cancel">Close</button><button id="dialog-apply" class="accent" value="apply">Apply</button></div></form></dialog>
+<script>
+const status = document.getElementById('status');
+if (location.protocol === 'file:') {
+  status.textContent = 'Start CircuitBench by double-clicking Start CircuitBench.cmd in the web folder. The simulator needs a local web address or the published GitHub Pages URL.';
+} else {
+  fetch('./vendor/pyodide/pyodide.mjs', {method: 'HEAD'})
+    .then(response => {
+      if (!response.ok || response.headers.get('content-type')?.includes('text/html')) {
+        throw new Error('Serve the built web/dist folder. On Windows, double-click Start CircuitBench.cmd in the web folder.');
+      }
+      return import('./app.js');
+    })
+    .catch(error => { status.textContent = 'CircuitBench could not start. ' + error.message; });
+}
+</script>
+</body>
+</html>

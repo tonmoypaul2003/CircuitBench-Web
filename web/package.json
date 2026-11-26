@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "@o.z/ngspice-wasm": "0.0.0",
+    "pyodide": "0.27.7"
+  },
+  "name": "circuitbench-web",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node test.mjs"
+  },
+  "private": true
+}
