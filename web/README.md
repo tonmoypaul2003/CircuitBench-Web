@@ -1,4 +1,4 @@
-﻿# CircuitBench Web
+# CircuitBench Web
 
 CircuitBench runs as a static web app. Its schematic compiler, model importer, waveform parser and trace expressions use the desktop Python core through Pyodide. ngspice 46 runs in a separate Web Worker for each simulation. The published artifact contains both runtimes and the model files. Circuit data, logs and waveforms stay in the browser unless you download them.
 
@@ -32,6 +32,7 @@ Only the contents of `web/dist` are published. All runtime URLs are relative to 
 - Operating-point runs label the schematic with node voltages and signed current directions. The **Readings** panel lists the same values, and **Show plot** opens the optional plot for operating-point and DC sweep results.
 - Open or download a desktop-compatible `.cwb` schematic. Use **Import models** for SPICE model cards and the supported self-contained subcircuit subset, or load the included Qucs-S and starter libraries.
 - Place components with the library, wire grid points, add junctions and attach voltage, differential or pin-current markers. The selection tool supports shift selection, drag, and arrow-key movement. Scroll to zoom and middle-drag, right-drag or Alt-drag to pan.
+- In **Select** mode, click a measurement marker on the schematic or in the **Measurement markers** panel, then press **Delete**. Shift-click selects multiple markers. Undo restores deleted markers.
 - Results support plot pages, subplots, trace expressions, labels, axis settings, pins, CSV and PNG. Use **Print page / PDF** and the browser's PDF destination to export a PDF.
 - **Run history** keeps snapshots, decks, logs and ASCII waveform files in browser storage. **Run files** downloads them individually. Clearing site data clears this history.
 

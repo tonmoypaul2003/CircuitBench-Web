@@ -17,7 +17,7 @@ worker.onerror=event=>{
   requests.forEach(request=>request.reject(workerFailure));
   requests.clear();
 };
-const emptySelection=()=>({parts:[],wires:[],junctions:[]});
+const emptySelection=()=>({parts:[],wires:[],junctions:[],markers:[]});
 const state={tool:'select',anchor:null,selection:emptySelection(),catalog:[]};
 const undo=[],redo=[];
 let editing=false, runWorker, generation=0, currentRun, projectName='CircuitBench.cwb', savedProject='';
@@ -98,6 +98,7 @@ function select(item,extend) {
     if(position<0)indices.push(item.index);else if(extend)indices.splice(position,1);
   }
   refreshSelection();
+  refreshMarkers();
   sheet.draw();
 }
 function box(a,b,extend) {
@@ -115,8 +116,9 @@ function box(a,b,extend) {
   refreshSelection();sheet.draw();
 }
 function move(delta){
-  if(Object.values(state.selection).some(indices=>indices.length))
-    change('move',{selection:Object.values(state.selection),delta});
+  const {parts,wires,junctions}=state.selection;
+  const selection=[parts,wires,junctions];
+  if(selection.some(indices=>indices.length))change('move',{selection,delta});
 }
 function setTool(tool,entry) {
   state.tool=tool;state.anchor=null;state.entry=entry;
@@ -125,7 +127,7 @@ function setTool(tool,entry) {
 }
 function hints(){
   const hints={
-    select:'Drag to select. Shift adds to selection. Scroll to zoom. Middle-drag pans.',
+    select:'Click a marker to select it, then press Delete. Shift-click adds to selection.',
     wire:state.anchor?'Click the wire endpoint.':'Click the wire start.',
     junction:'Click a wire to add a junction.',
     place:'Click to place '+(state.entry?.label||'component')+'. Esc selects.',
@@ -213,14 +215,19 @@ function showResult(display,mode){
 }
 function refreshMarkers(){
   const panel=$('markers');panel.replaceChildren();
-  state.project.markers.forEach((marker,i)=>{
-    const row=element('div',null,panel);row.className='marker-row';
-    element('span',marker.kind==='I'?'I('+marker.ref+':'+(marker.pin+1)+')':
-      marker.kind+' '+marker.points.map(p=>p.join(',')).join(' / '),row);
-    const remove=button('Remove',row,()=>mutate(project=>project.markers.splice(i,1)));
-    remove.setAttribute('aria-label','Remove marker '+(i+1));
+  const markers=state.project.markers;
+  if(!markers.length)element('p','No measurement markers.',panel).className='empty';
+  markers.forEach((marker,i)=>{
+    const title=marker.kind==='I'?'I('+marker.ref+':'+(marker.pin+1)+')':
+      marker.kind+' '+marker.points.map(p=>p.join(',')).join(' / ');
+    const control=button(title,panel,event=>{
+      setTool('select');
+      select({kind:'markers',index:i},event.shiftKey);
+      $('schematic').focus();
+    });
+    control.setAttribute('aria-pressed',String(state.selection.markers.includes(i)));
+    control.className='marker-choice';
   });
-  if(state.project.markers.length)button('Clear markers',panel,()=>mutate(project=>{project.markers=[];}));
 }
 function populateLibrary(){
   const list=$('parts');list.replaceChildren();

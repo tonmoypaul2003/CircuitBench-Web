@@ -16,6 +16,25 @@ export function createSheet(state, callbacks) {
   const distance = (a,b) => Math.hypot(a[0]-b[0], a[1]-b[1]);
   const points = () => [...state.pins.flat(), ...state.project.wires.flat(), ...state.project.junctions];
 
+  function markerPositions(marker) {
+    if(marker.kind!=='I')return marker.points;
+    const index=state.project.parts.findIndex(part=>part.ref.toUpperCase()===marker.ref.toUpperCase());
+    const pin=state.pins[index]?.[marker.pin];
+    return pin?[pin]:[];
+  }
+
+  function hitMarker(pixel) {
+    let best=null, closest=15;
+    state.project.markers.forEach((marker,index)=>{
+      for(const pin of markerPositions(marker)){
+        const [x,y]=xy(pin);
+        const near=Math.min(distance([x,y],pixel),distance([x+12,y-9],pixel));
+        if(near<=closest){closest=near;best={kind:'markers',index};}
+      }
+    });
+    return best;
+  }
+
   function hit(point, pixel) {
     const pin = state.pins.flatMap((pins,i) => pins.map((p,j) => ({p,i,j})))
       .find(({p}) => distance(xy(p), pixel) < 10);
@@ -91,12 +110,10 @@ export function createSheet(state, callbacks) {
       state.pins[i].forEach(p => dot(xy(p),2.8));
     });
     if ($('show-markers').checked) markers.forEach((marker,i) => {
-      const pins = marker.kind === 'I'
-        ? [state.pins[parts.findIndex(p=>p.ref.toUpperCase()===marker.ref.toUpperCase())]?.[marker.pin]].filter(Boolean)
-        : marker.points;
-      ctx.fillStyle = markerInk;
+      const active=selected('markers',i);
+      ctx.fillStyle = active?selectionInk:markerInk;
       ctx.font = 'bold 12px system-ui';
-      pins.forEach((p,j) => {const [x,y]=xy(p);dot([x,y],5);ctx.fillText(marker.kind+(i+1)+(marker.kind==='VD' ? j ? '−' : '+' : ''),x+7,y-6);});
+      markerPositions(marker).forEach((p,j) => {const [x,y]=xy(p);dot([x,y],active?7:5);ctx.fillText(marker.kind+(i+1)+(marker.kind==='VD' ? j ? '−' : '+' : ''),x+7,y-6);});
     });
     if (state.bias && $('show-bias').checked) drawBias(ctx, line, dot);
     if (cursor && state.tool !== 'select') {
@@ -170,11 +187,14 @@ export function createSheet(state, callbacks) {
     const pixel=local(event), point=grid(pixel);
     gesture={pixel,point,pan:event.button!==0 || event.altKey,extend:event.shiftKey};
     if (gesture.pan) {gesture.origin=origin.slice();return;}
-    if (state.tool !== 'select') {callbacks.use(point,hit(point,pixel));return;}
-    const item=hit(point,pixel);
+    if (state.tool !== 'select') {
+      callbacks.use(point,hit(point,pixel));
+      return;
+    }
+    const item=($('show-markers').checked && hitMarker(pixel)) || hit(point,pixel);
     if (item) {
       if (event.shiftKey || !state.selection[item.kind].includes(item.index)) callbacks.select(item,event.shiftKey);
-      gesture.move=!event.shiftKey;
+      gesture.move=!event.shiftKey && item.kind!=='markers';
     } else {
       if (!event.shiftKey) callbacks.select(null,false);
       gesture.box=true;
