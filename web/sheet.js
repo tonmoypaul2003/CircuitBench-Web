@@ -138,19 +138,29 @@ export function createSheet(state, callbacks) {
     ctx.lineWidth = 1.5;
     function label(text, x, y, color, alignment='left') {
       ctx.textAlign = alignment;
-      const width = ctx.measureText(text).width;
+      const {width,actualBoundingBoxAscent:ascent,actualBoundingBoxDescent:descent} = ctx.measureText(text);
       const left = alignment==='right'?x-width:alignment==='center'?x-width/2:x;
       ctx.fillStyle = background;
-      ctx.fillRect(left-3,y-12,width+6,15);
+      ctx.fillRect(left-3,y-ascent-2,width+6,ascent+descent+4);
       ctx.fillStyle = color;
       ctx.fillText(text,x,y);
     }
-    for (const {point,value} of state.bias.nodes) {
+    const styles = state.project.voltage_labels ?? {};
+    for (const {net,point,value} of state.bias.nodes) {
+      const style = (Object.hasOwn(styles,net)?styles[net]:styles['*']) ?? {color:null,size:12,x:0,y:0};
+      const ink = style.color ?? voltageInk;
       const [x,y] = xy(point);
-      ctx.fillStyle = voltageInk;
+      const target = [x+7+style.x,y-10+style.y];
+      if (style.x || style.y) {
+        ctx.strokeStyle = ink;
+        line([x,y],target);
+      }
+      ctx.fillStyle = ink;
       dot([x,y],4);
-      label(engineering(value,'V'),x-7,y-6,voltageInk,'right');
+      ctx.font = `bold ${style.size}px system-ui`;
+      label(engineering(value,'V'),...target,ink);
     }
+    ctx.font = 'bold 12px system-ui';
     for (const {part,pin,value} of state.bias.currents) {
       const device = state.project.parts[part];
       const terminal = state.pins[part][pin];

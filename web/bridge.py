@@ -9,7 +9,7 @@ from circuit import (Project, Profile, SYMBOLS, SOURCE_DEFAULTS, connectivity,
                      example, netlist, number, on_wire, source_value, translate_selection)
 from spice_library import MODEL_PORTS, read_library
 from qucs_library import LibraryDiode, import_diodes
-from results import Plot, analysis_deck, load_plot
+from results import Plot, analysis_deck, bias_deck, bias_readings, load_plot, trim_bias_vectors
 from plot_math import evaluate
 
 
@@ -145,60 +145,6 @@ def action(call):
 
 def pair(value):
     return [value.real, value.imag] if math.isfinite(value.real) and math.isfinite(value.imag) else None
-
-
-def bias_deck(project):
-    nets = connectivity(project)
-    devices = [(i, part) for i, part in enumerate(project.parts) if part.kind not in "GN"]
-    anchors = {nets[pin]: pin for _, part in devices for pin in part.pins()}
-    for point in project.junctions:
-        if nets[point] in anchors:
-            anchors[nets[point]] = point
-    for part in project.parts:
-        if part.kind in "GN":
-            point = part.pins()[0]
-            if nets[point] in anchors:
-                anchors[nets[point]] = point
-    original_count = len(project.markers)
-    currents = []
-    for index, part in devices:
-        pins = part.pins()
-        for pin in range(1 if len(pins) == 2 else len(pins)):
-            project.markers.append({"kind": "I", "ref": part.ref, "pin": pin})
-            currents.append({"part": index, "pin": pin})
-    measurements = []
-    deck = netlist(project, measurements)
-    for current, (_, vector, _) in zip(currents, measurements[original_count:]):
-        current["vector"] = vector
-    return deck, {"nodes": [{"net": net, "point": point} for net, point in anchors.items()],
-                  "currents": currents}
-
-
-def bias_readings(plot, operating_point):
-    vectors = {name.lower(): value.real for name, value in zip(plot.names, plot.rows[0])}
-    nodes = []
-    for node in operating_point["nodes"]:
-        net = node["net"]
-        value = 0 if net == "0" else vectors.get(f"v({net})")
-        if value is not None:
-            nodes.append({**node, "value": value})
-    currents = [{**current, "value": vectors[current["vector"]]}
-                for current in operating_point["currents"] if current["vector"] in vectors]
-    return {"nodes": nodes, "currents": currents}
-
-
-def trim_bias_vectors(plot, operating_point, selected):
-    internal = set()
-    for current in operating_point["currents"]:
-        vector = current["vector"]
-        internal.update((vector, f"v(n_{vector[4:-1]})"))
-    keep = [index for index, name in enumerate(plot.names)
-            if name.lower() not in internal or index in selected]
-    plot.names = [plot.names[index] for index in keep]
-    plot.units = [plot.units[index] for index in keep]
-    plot.rows = [[row[index] for index in keep] for row in plot.rows]
-    indices = {old: new for new, old in enumerate(keep)}
-    return [indices[index] for index in selected]
 
 
 def dispatch(payload):

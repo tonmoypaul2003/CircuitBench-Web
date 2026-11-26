@@ -40,6 +40,12 @@ close(op.rows[0][op.selected[2]][0],.005,1e-10);
 close(call('expression',{plot:op,expression:'multiply(v(out), 2)'})[0][0],10,1e-10);
 
 const bias=await solve(divider,true);
+const styled=structuredClone(divider);
+styled.voltage_labels={ '*':{color:'#b14354',size:18,x:15,y:-25}, out:{color:null,size:24,x:-20,y:30} };
+assert.deepEqual(call('validate',{project:styled}).project.voltage_labels,styled.voltage_labels);
+assert.equal(call('netlist',{project:styled,annotate:true}).input,call('netlist',{project:divider,annotate:true}).input);
+assert.throws(()=>call('validate',{project:{...styled,voltage_labels:{out:{color:'#000000',size:100,x:0,y:0}}}}),
+  /Invalid voltage label appearance/);
 const output=bias.annotations.nodes.find(node=>node.net==='out');
 assert.deepEqual(output.point,[5,-2]);
 close(output.value,5,1e-10);

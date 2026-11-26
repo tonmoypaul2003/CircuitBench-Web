@@ -183,8 +183,12 @@ function refresh(){
   $('undo').disabled=undo.length===0;$('redo').disabled=redo.length===0;
   populateLibrary();refreshSelection();refreshMarkers();refreshBias();sheet.draw();
 }
+function simulationRevision(project){
+  const {voltage_labels, ...circuit}=project;
+  return JSON.stringify(circuit);
+}
 function refreshBias(){
-  state.bias = currentRun?.annotations && JSON.stringify(currentRun.project)===JSON.stringify(state.project)
+  state.bias = currentRun?.annotations && simulationRevision(currentRun.project)===simulationRevision(state.project)
     ? currentRun.annotations : null;
   $('bias-controls').hidden=!state.bias;
   const readings=$('bias-readings');
@@ -200,6 +204,50 @@ function refreshBias(){
     element('dt',device.ref+' · '+terminal,readings);
     element('dd',engineering(Math.abs(value),'A')+(value===0?'':value>0?' into':' out of'),readings);
   }
+}
+function editVoltageLabels(){
+  if(!state.bias)return;
+  const styles=state.project.voltage_labels ?? {};
+  let target,inherit,automatic,color,size,x,y;
+  const themeColor=getComputedStyle($('schematic')).getPropertyValue('--bias-voltage').trim();
+  dialog('Voltage label appearance',panel=>{
+    target=element('select',null,element('label','Apply to',panel));
+    options(target,[['*','Default for all nodes'],...state.bias.nodes.map(({net})=>[net,net==='0'?'Ground':net])],'*');
+    inherit=field(panel,'Use default for this node','','checkbox');
+    automatic=field(panel,'Use theme color','','checkbox');
+    color=field(panel,'Color',themeColor,'color');
+    size=field(panel,'Text size (px)',12,'number');
+    x=field(panel,'Horizontal offset (px)',0,'number');
+    y=field(panel,'Vertical offset (px)',0,'number');
+    for(const [input,min,max] of [[size,8,48],[x,-500,500],[y,-500,500]]){
+      input.min=min; input.max=max; input.required=true;
+    }
+    element('p','Positive offsets move the label right and down.',panel);
+    function updateControls(){
+      for(const input of [automatic,size,x,y])input.disabled=inherit.checked;
+      color.disabled=inherit.checked||automatic.checked;
+    }
+    function loadStyle(){
+      const key=target.value;
+      const style=(Object.hasOwn(styles,key)?styles[key]:styles['*']) ?? {color:null,size:12,x:0,y:0};
+      inherit.parentElement.hidden=key==='*';
+      inherit.checked=key!=='*'&&!Object.hasOwn(styles,key);
+      automatic.checked=style.color===null;
+      color.value=style.color??themeColor;
+      size.value=style.size; x.value=style.x; y.value=style.y;
+      updateControls();
+    }
+    target.onchange=loadStyle;
+    inherit.onchange=automatic.onchange=updateControls;
+    loadStyle();
+  },()=>{
+    const key=target.value;
+    const next=inherit.checked?{...styles}:{...styles,[key]:{
+      color:automatic.checked?null:color.value,size:size.valueAsNumber,x:x.valueAsNumber,y:y.valueAsNumber,
+    }};
+    if(inherit.checked)delete next[key];
+    if(JSON.stringify(next)!==JSON.stringify(styles))mutate(project=>{project.voltage_labels=next;});
+  });
 }
 function updatePlotVisibility(){
   const visible=$('plot-control').hidden || $('show-plot').checked;
@@ -535,6 +583,7 @@ $('search').oninput=populateLibrary;
 $('search').onkeydown=event=>{if(event.key==='Enter')$('parts').querySelector('button')?.click();};
 $('show-markers').onchange=sheet.draw;
 $('show-bias').onchange=sheet.draw;
+$('voltage-style').onclick=editVoltageLabels;
 $('show-plot').onchange=updatePlotVisibility;
 $('fit').onclick=sheet.fit;
 $('reset-view').onclick=sheet.reset;

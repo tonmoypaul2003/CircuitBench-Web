@@ -145,6 +145,7 @@ class Project:
         name: {"type": family, "parameters": parameters.copy(), "flags": []}
         for name, (family, parameters) in GENERIC_MODELS.items()})
     markers: list[dict] = field(default_factory=list)
+    voltage_labels: dict[str, dict] = field(default_factory=dict)
 
     def register_qucs_diode(self, entry):
         stem = "QUCS_" + re.sub(r"[^A-Z0-9_]", "_", entry.name.upper())[:80]
@@ -180,8 +181,11 @@ class Project:
         del self.profiles[self.active]
         self.active = next(iter(self.profiles))
 
-    def dump(self):
-        return json.dumps({"version": 2, **asdict(self)}, indent=2)
+    def dump(self, *, include_label_styles=True):
+        data = asdict(self)
+        if not include_label_styles or not self.voltage_labels:
+            del data["voltage_labels"]
+        return json.dumps({"version": 2, **data}, indent=2)
 
     @classmethod
     def load(cls, source):
@@ -233,6 +237,15 @@ class Project:
                     or len(points) != (2 if marker["kind"] == "VD" else 1)
                     or any(len(p) != 2 or any(type(v) is not int for v in p) for p in points)):
                 raise ValueError("Invalid voltage marker")
+        if not isinstance(project.voltage_labels, dict) or any(
+                not isinstance(style, dict)
+                or style.keys() != {"color", "size", "x", "y"}
+                or (style["color"] is not None and (not isinstance(style["color"], str)
+                    or not re.fullmatch(r"#[0-9a-fA-F]{6}", style["color"])))
+                or type(style["size"]) is not int or not 8 <= style["size"] <= 48
+                or any(type(style[axis]) is not int or not -500 <= style[axis] <= 500 for axis in ("x", "y"))
+                for style in project.voltage_labels.values()):
+            raise ValueError("Invalid voltage label appearance")
         if version == 1:
             project.preserve_connected_legacy_pins()
         return project
